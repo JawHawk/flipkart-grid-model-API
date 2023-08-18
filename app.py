@@ -6,8 +6,10 @@ import nltk
 from nltk.stem.porter import PorterStemmer
 from promptify import Prompter,OpenAI, Pipeline
 import random
+from flask_cors import CORS, cross_origin
 
 app = Flask(__name__)
+CORS(app, support_credentials=True)
 
 fk = pd.read_csv('cleanFlipkartData.csv')
 clean_fk = fk.drop_duplicates()
@@ -43,8 +45,9 @@ def recommend(data):
     if not (item_brand or item_name or item_price or item_rating ):
        return [random.randint(1,len(clean_fk) - 1) for x in range(5)]
 
-    clean_fk['Name'] = clean_fk['Name'] + clean_fk['BreadCrumbs']
-    new_fk = pd.concat([clean_fk, pd.DataFrame([{'Brand': item_brand, 'Name': item_name, 'Price': item_price, 'Rating': item_rating}])], ignore_index=True)
+    new_fk = clean_fk
+    new_fk['Name'] = new_fk['Name'] + new_fk['BreadCrumbs']
+    new_fk = pd.concat([new_fk, pd.DataFrame([{'Brand': item_brand, 'Name': item_name, 'Price': item_price, 'Rating': item_rating}])], ignore_index=True)
 
     name_vec = cvv.fit_transform(new_fk['Name']).toarray()
     brand_vec = cvv.fit_transform(new_fk['Brand']).toarray()
@@ -57,14 +60,16 @@ def recommend(data):
     overall_similarity = name_similarity[-1] + brand_similarity[-1] + list(map(lambda x: x * 0.65, price_similarity[-1]))
 
     recom_indices = sorted(range(len(overall_similarity)), key=lambda i: overall_similarity[i], reverse=True)[1:6]
-    recommendations = [idx for idx in recom_indices]
+    recommendations = [{'Brand': clean_fk.iloc[idx]['Brand'], 'Image': clean_fk.iloc[idx]['Image'], 'Name':  clean_fk.iloc[idx]['Name'], 'Rating':  clean_fk.iloc[idx]['Rating'], 'BreadCrumbs':  clean_fk.iloc[idx]['BreadCrumbs'], 'Reviews':  clean_fk.iloc[idx]['Reviews'], 'Price':  clean_fk.iloc[idx]['Price'], 'Index': idx} for idx in recom_indices]
     return recommendations
 
 @app.route('/recommend', methods=['POST'])
+@cross_origin(supports_credentials=True)
 def recommend_route(data=None):
     return jsonify(recommend(request.json))
 
 @app.route('/chat', methods=['POST'])
+@cross_origin(supports_credentials=True)
 def chat_route():
     item = request.json
     message = item.get('message', None)
@@ -102,7 +107,6 @@ def chat_route():
         for i in res[0]:
            data[i['E']] = data.get(i['E'], '') + ' ' + str(i['W'])
 
-        print(recommend(data))
         return jsonify(recommend(data))
     except Exception as e:
         print(e)
