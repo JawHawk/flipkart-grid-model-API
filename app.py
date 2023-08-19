@@ -7,6 +7,7 @@ from nltk.stem.porter import PorterStemmer
 from promptify import Prompter,OpenAI, Pipeline
 import random
 from flask_cors import CORS, cross_origin
+import requests
 
 app = Flask(__name__)
 CORS(app, support_credentials=True)
@@ -42,8 +43,19 @@ def recommend(data):
     item_price = str(data.get('Price', '')).replace(",", "")
     item_rating = str(data.get('Rating', ''))
 
+    res = requests.get('http://localhost:5001/purchased')
+    print(res.json())
+
     if not (item_brand or item_name or item_price or item_rating ):
-       return [random.randint(1,len(clean_fk) - 1) for x in range(5)]
+        interested = res["interested"]
+        purchased = res['purchased']
+        for i in interested[:3]:
+           item_name += str(i["name"]) + str(i["breadcrumbs"]) + " "
+           item_brand += str(i["brand"]) + " "
+        
+        for j in purchased:
+           item_name += str(i["name"]) + str(i["breadcrumbs"]) + " "
+           item_brand += str(i["brand"]) + " "
 
     new_fk = clean_fk
     new_fk['Name'] = new_fk['Name'] + new_fk['BreadCrumbs']
