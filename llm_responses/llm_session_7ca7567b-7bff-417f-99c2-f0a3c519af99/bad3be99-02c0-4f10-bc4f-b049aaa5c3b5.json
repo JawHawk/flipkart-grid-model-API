@@ -1,0 +1,104 @@
+{
+    "conversation_id": "7ca7567b-7bff-417f-99c2-f0a3c519af99",
+    "start_time": "2023_08_20:00:23:22",
+    "llm": {
+        "name": "gpt-3.5-turbo",
+        "meta_data": {
+            "model": "gpt-3.5-turbo",
+            "api_wait": 60,
+            "api_retry": 6,
+            "model_type": "chat_models",
+            "temperature": 0.7,
+            "top_p": 1,
+            "n": 1,
+            "presence_penalty": 0,
+            "frequency_penalty": 0,
+            "json_depth_limit": 20
+        }
+    },
+    "participants": [
+        {
+            "name": "User",
+            "is_bot": false
+        },
+        {
+            "name": "Assistant",
+            "is_bot": true
+        }
+    ],
+    "messages": [
+        {
+            "request_timestamp": "2023_08_20:00:23:22",
+            "prompt_id": "37b0b15d-a9fa-4e11-9f2f-00d652ea41a3",
+            "prompt_filename": "ner.jinja",
+            "processing_task": "Below paragraph is the input from a user. The paragraph may describe some information about user and about the clothes and fashion items he or she is interested to buy.\nYou are a highly intelligent and accurate fashion domain Named-entity recognition(NER) system. You take Passage as input and your task is to recognize and extract specific types of fashion domain named entities in that given passage and classify into a set of following predefined entity types:\n['Brand', 'Labels', 'Price']Your output format is only [{'T': type of entity from predefined entity types, 'E': entity in the input text}},...,{{'branch' : Appropriate branch of the passage ,'group': Appropriate Group of the passage}] form, no other form. Don't include any text in response such as 'here are named entities..' etc, return only valid json\n\nExamples:\n\nInput: I am a 20 year old woman looking for a Diwali outfit in Mumbai\nOutput: [[{'E': 'Labels', 'W': 'women'}, {'E': 'Labels', 'W': 'saree'}, {'E': 'Labels', 'W': 'kurta'}]]\n\nInput: boys black tshirts around 500 and nike\nOutput: [[{'E': 'Labels', 'W': 'men'}, {'E': 'Labels', 'W': 'boys'}, {'E': 'Labels', 'W': 'black'}, {'E': 'Labels', 'W': 'tshirts'}, {'E': 'Brand', 'W': 'nike'}, {'E': 'Price', 'W': '500'}]]\n\nInput: women\nOutput:",
+            "template_metadata": {},
+            "input_prompt": {
+                "labels": [
+                    "Brand",
+                    "Labels",
+                    "Price"
+                ],
+                "domain": "fashion",
+                "description": "Below paragraph is the input from a user. The paragraph may describe some information about user and about the clothes and fashion items he or she is interested to buy.",
+                "text_input": "women",
+                "output_format": null,
+                "examples": [
+                    [
+                        "I am a 20 year old woman looking for a Diwali outfit in Mumbai",
+                        [
+                            {
+                                "E": "Labels",
+                                "W": "women"
+                            },
+                            {
+                                "E": "Labels",
+                                "W": "saree"
+                            },
+                            {
+                                "E": "Labels",
+                                "W": "kurta"
+                            }
+                        ]
+                    ],
+                    [
+                        "boys black tshirts around 500 and nike",
+                        [
+                            {
+                                "E": "Labels",
+                                "W": "men"
+                            },
+                            {
+                                "E": "Labels",
+                                "W": "boys"
+                            },
+                            {
+                                "E": "Labels",
+                                "W": "black"
+                            },
+                            {
+                                "E": "Labels",
+                                "W": "tshirts"
+                            },
+                            {
+                                "E": "Brand",
+                                "W": "nike"
+                            },
+                            {
+                                "E": "Price",
+                                "W": "500"
+                            }
+                        ]
+                    ]
+                ]
+            },
+            "response_text": "[{'E': 'Labels', 'W': 'women'}]",
+            "parsed_output": [
+                {
+                    "E": "Labels",
+                    "W": "women"
+                }
+            ]
+        }
+    ]
+}

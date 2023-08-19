@@ -30,35 +30,42 @@ def stem(text):
   return " ".join(y)
 
 # OPENAI vars
-api_key = ''
-# api_key = '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'
+# api_key = ''
+api_key = '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'
 
 model        = OpenAI(api_key)
 prompter     = Prompter('ner.jinja')
 pipe         = Pipeline(prompter , model)
 
-def recommend(data):
-    item_name = ' '.join(list(map(stem, data.get('Labels', '').split(" "))))
-    item_brand = data.get('Brand', '').replace(" ", "").lower()
-    item_price = str(data.get('Price', '')).replace(",", "")
-    item_rating = str(data.get('Rating', ''))
+def recommend(data=None):
+    res = requests.get('http://localhost:5001/api/flipkart/getpurchased').json()
 
-    res = requests.get('http://localhost:5001/purchased')
-    print(res.json())
+    item_name = ''
+    item_brand = ''
+    item_price = ''
+    item_rating = ''
 
-    if not (item_brand or item_name or item_price or item_rating ):
-        interested = res["interested"]
-        purchased = res['purchased']
-        for i in interested[:3]:
-           item_name += str(i["name"]) + str(i["breadcrumbs"]) + " "
-           item_brand += str(i["brand"]) + " "
-        
-        for j in purchased:
-           item_name += str(i["name"]) + str(i["breadcrumbs"]) + " "
-           item_brand += str(i["brand"]) + " "
+    res_name = ''
+    res_brand = ''
 
-    new_fk = clean_fk
-    new_fk['Name'] = new_fk['Name'] + new_fk['BreadCrumbs']
+    interested = res["interested"]
+    purchased = res['purchased']
+    for i in interested[:3]:
+       res_name += str(i["name"]) + " "
+       res_brand += str(i["brand"]) + " "
+    
+    for j in purchased:
+       res_name += str(j["name"]) + " "
+       res_brand += str(j["brand"]) + " "
+    
+    if(data != None):
+        item_name += data.get('Labels', data.get('Name', ''))
+        item_brand += data.get('Brand', '').replace(" ", "")
+        item_price += str(data.get('Price', '')).replace(",", "")
+        item_rating += str(data.get('Rating', ''))
+
+    new_fk = clean_fk.copy(deep=True)
+    # new_fk['Name'] = new_fk['Name']
     new_fk = pd.concat([new_fk, pd.DataFrame([{'Brand': item_brand, 'Name': item_name, 'Price': item_price, 'Rating': item_rating}])], ignore_index=True)
 
     name_vec = cvv.fit_transform(new_fk['Name']).toarray()
@@ -75,10 +82,10 @@ def recommend(data):
     recommendations = [{'Brand': clean_fk.iloc[idx]['Brand'], 'Image': clean_fk.iloc[idx]['Image'], 'Name':  clean_fk.iloc[idx]['Name'], 'Rating':  clean_fk.iloc[idx]['Rating'], 'BreadCrumbs':  clean_fk.iloc[idx]['BreadCrumbs'], 'Reviews':  clean_fk.iloc[idx]['Reviews'], 'Price':  clean_fk.iloc[idx]['Price'], 'Index': idx} for idx in recom_indices]
     return recommendations
 
-@app.route('/recommend', methods=['POST'])
+@app.route('/recommend', methods=['GET'])
 @cross_origin(supports_credentials=True)
 def recommend_route(data=None):
-    return jsonify(recommend(request.json))
+    return jsonify(recommend())
 
 @app.route('/chat', methods=['POST'])
 @cross_origin(supports_credentials=True)
@@ -117,8 +124,10 @@ def chat_route():
         res = result[0].get('parsed').get('data').get('completion')
         data = {}
         for i in res[0]:
-           data[i['E']] = data.get(i['E'], '') + ' ' + str(i['W'])
-
+           try:
+              data[i['E']] = data.get(i['E'], '') + ' ' + str(i['W'])
+           except:
+              print(i)
         return jsonify(recommend(data))
     except Exception as e:
         print(e)
