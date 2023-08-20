@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd  
 import nltk
@@ -9,25 +9,32 @@ import random
 from flask_cors import CORS, cross_origin
 import requests
 
-app = Flask(__name__)
-CORS(app, support_credentials=True)
-
-fk = pd.read_csv('cleanFlipkartData.csv')
-clean_fk = fk.drop_duplicates()
-clean_fk['Brand'] = clean_fk['Brand'].apply(lambda x: x.replace(" ", ""))
-clean_fk['Rating'] = clean_fk['Rating'].apply(lambda x: str(x))
-clean_fk['Price'] = clean_fk['Price'].apply(lambda x: str(x))
-
-cvv = TfidfVectorizer(max_features=5000, stop_words="english")
-
 ps = PorterStemmer()
 def stem(text):
   y = []
 
   for i in text.split():
+    i = i.replace("'", "")
     y.append(ps.stem(i))
 
-  return " ".join(y)
+  return " ".join(set(y))
+
+
+app = Flask(__name__)
+CORS(app, support_credentials=True)
+
+fk = pd.read_csv('cleanFlipkartData.csv')
+fk = fk.drop_duplicates()
+fk['Price'] = fk['Price'].apply(lambda x: str(x))
+fk['Rating'] = fk['Rating'].apply(lambda x: str(x))
+
+clean_fk = fk.copy(deep=True)
+clean_fk['Brand'] = clean_fk['Brand'].apply(lambda x: x.replace(" ", "").lower())
+
+clean_fk['Name'] = clean_fk['Name'] + clean_fk['BreadCrumbs']
+clean_fk['Name'] = clean_fk['Name'].apply(stem)
+
+cvv = TfidfVectorizer(max_features=5000, stop_words="english")
 
 # OPENAI vars
 # api_key = ''
@@ -50,13 +57,14 @@ def recommend(data=None):
 
     interested = res["interested"]
     purchased = res['purchased']
+
     for i in interested[:3]:
-       res_name += str(i["name"]) + " "
-       res_brand += str(i["brand"]) + " "
+       res_name += stem(str(i["name"])) + " "
+       res_brand += stem(str(i["brand"])) + " "
     
-    for j in purchased:
-       res_name += str(j["name"]) + " "
-       res_brand += str(j["brand"]) + " "
+    for j in purchased[:3]:
+       res_name = stem(str(j["name"]) + res_name) + " "
+       res_brand = stem(str(j["brand"]) + res_brand) + " "
     
     if(data != None):
         item_name += data.get('Labels', data.get('Name', ''))
@@ -64,8 +72,10 @@ def recommend(data=None):
         item_price += str(data.get('Price', '')).replace(",", "")
         item_rating += str(data.get('Rating', ''))
 
+    item_name = stem(item_name)
+    item_brand = item_brand.lower() 
+
     new_fk = clean_fk.copy(deep=True)
-    # new_fk['Name'] = new_fk['Name']
     new_fk = pd.concat([new_fk, pd.DataFrame([{'Brand': item_brand, 'Name': item_name, 'Price': item_price, 'Rating': item_rating}])], ignore_index=True)
 
     name_vec = cvv.fit_transform(new_fk['Name']).toarray()
@@ -76,10 +86,11 @@ def recommend(data=None):
     brand_similarity = cosine_similarity(brand_vec)
     price_similarity = cosine_similarity(price_vec)
 
-    overall_similarity = name_similarity[-1] + brand_similarity[-1] + list(map(lambda x: x * 0.65, price_similarity[-1]))
+    overall_similarity = name_similarity[-1] + brand_similarity[-1] 
 
-    recom_indices = sorted(range(len(overall_similarity)), key=lambda i: overall_similarity[i], reverse=True)[1:6]
-    recommendations = [{'Brand': clean_fk.iloc[idx]['Brand'], 'Image': clean_fk.iloc[idx]['Image'], 'Name':  clean_fk.iloc[idx]['Name'], 'Rating':  clean_fk.iloc[idx]['Rating'], 'BreadCrumbs':  clean_fk.iloc[idx]['BreadCrumbs'], 'Reviews':  clean_fk.iloc[idx]['Reviews'], 'Price':  clean_fk.iloc[idx]['Price'], 'Index': idx} for idx in recom_indices]
+    recom_indices = sorted(range(len(overall_similarity)), key=lambda i: overall_similarity[i], reverse=True)[1:31]
+    
+    recommendations = [{'Brand': fk.iloc[idx]['Brand'], 'Image': fk.iloc[idx]['Image'], 'Name':  fk.iloc[idx]['Name'], 'Rating':  fk.iloc[idx]['Rating'], 'BreadCrumbs':  fk.iloc[idx]['BreadCrumbs'], 'Reviews':  fk.iloc[idx]['Reviews'], 'Price':  fk.iloc[idx]['Price'], 'Index': idx} for idx in recom_indices]
     return recommendations
 
 @app.route('/recommend', methods=['GET'])
@@ -92,7 +103,7 @@ def recommend_route(data=None):
 def chat_route():
     item = request.json
     message = item.get('message', None)
-    # return jsonify(recommend({"Brand": "nike"}))
+
     if message is None:
        return "Input Message can't be null", 400
     
@@ -128,7 +139,9 @@ def chat_route():
               data[i['E']] = data.get(i['E'], '') + ' ' + str(i['W'])
            except:
               print(i)
-        return jsonify(recommend(data))
+
+        resp = recommend(data)
+        return jsonify(resp[:5])
     except Exception as e:
         print(e)
         return "Error", 400
