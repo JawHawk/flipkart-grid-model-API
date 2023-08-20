@@ -45,26 +45,11 @@ prompter     = Prompter('ner.jinja')
 pipe         = Pipeline(prompter , model)
 
 def recommend(data=None):
-    res = requests.get('http://localhost:5001/api/flipkart/getpurchased').json()
 
     item_name = ''
     item_brand = ''
     item_price = ''
     item_rating = ''
-
-    res_name = ''
-    res_brand = ''
-
-    interested = res["interested"]
-    purchased = res['purchased']
-
-    for i in interested[:3]:
-       res_name += stem(str(i["name"])) + " "
-       res_brand += stem(str(i["brand"])) + " "
-    
-    for j in purchased[:3]:
-       res_name = stem(str(j["name"]) + res_name) + " "
-       res_brand = stem(str(j["brand"]) + res_brand) + " "
     
     if(data != None):
         item_name += data.get('Labels', data.get('Name', ''))
@@ -93,10 +78,56 @@ def recommend(data=None):
     recommendations = [{'Brand': fk.iloc[idx]['Brand'], 'Image': fk.iloc[idx]['Image'], 'Name':  fk.iloc[idx]['Name'], 'Rating':  fk.iloc[idx]['Rating'], 'BreadCrumbs':  fk.iloc[idx]['BreadCrumbs'], 'Reviews':  fk.iloc[idx]['Reviews'], 'Price':  fk.iloc[idx]['Price'], 'Index': idx} for idx in recom_indices]
     return recommendations
 
+def recommend2():
+    res = requests.get('http://localhost:5001/api/flipkart/getpurchased').json()
+
+    recommend_indexes = []
+
+    interested = res["interested"]
+    purchased = res['purchased']
+    for i in interested:
+        res_name = stem(str(i["name"]) + str(j["breadcrumbs"])) 
+        res_brand = stem(str(i["brand"]).lower())
+        res_price = i["price"]
+        new_fk = clean_fk.copy(deep=True)
+        new_fk = pd.concat([new_fk, pd.DataFrame([{'Brand': res_brand, 'Name': res_name, 'Price': res_price, 'Rating': ''}])], ignore_index=True)
+
+        name_vec = cvv.fit_transform(new_fk['Name']).toarray()
+        brand_vec = cvv.fit_transform(new_fk['Brand']).toarray()
+
+        name_similarity = cosine_similarity(name_vec)
+        brand_similarity = cosine_similarity(brand_vec)
+
+        overall_similarity = name_similarity[-1] + brand_similarity[-1] 
+        recommend_indexes.append(sorted(range(len(overall_similarity)), key=lambda i: overall_similarity[i], reverse=True)[5])
+
+    for j in purchased:
+        res_name = stem(str(j["name"]) + str(j["breadcrumbs"]))
+        res_brand = stem(str(j["brand"]).lower())
+        res_price = i["price"]
+
+        new_fk = clean_fk.copy(deep=True)
+        new_fk = pd.concat([new_fk, pd.DataFrame([{'Brand': res_brand, 'Name': res_name, 'Price': res_price, 'Rating': ''}])], ignore_index=True)
+
+        name_vec = cvv.fit_transform(new_fk['Name']).toarray()
+        brand_vec = cvv.fit_transform(new_fk['Brand']).toarray()
+
+        name_similarity = cosine_similarity(name_vec)
+        brand_similarity = cosine_similarity(brand_vec)
+
+        overall_similarity = name_similarity[-1] + brand_similarity[-1] 
+        recommend_indexes.append(sorted(range(len(overall_similarity)), key=lambda i: overall_similarity[i], reverse=True)[5])
+    
+    for i in range(15 - len(recommend_indexes)):
+        recommend_indexes.append(random.randint(1, len(clean_fk['Name'].tolist())))
+    
+    recom = [{'Brand': fk.iloc[idx]['Brand'], 'Image': fk.iloc[idx]['Image'], 'Name':  fk.iloc[idx]['Name'], 'Rating':  fk.iloc[idx]['Rating'], 'BreadCrumbs':  fk.iloc[idx]['BreadCrumbs'], 'Reviews':  fk.iloc[idx]['Reviews'], 'Price':  fk.iloc[idx]['Price'], 'Index': idx} for idx in recommend_indexes]
+    return recom
+
 @app.route('/recommend', methods=['GET'])
 @cross_origin(supports_credentials=True)
 def recommend_route(data=None):
-    return jsonify(recommend())
+    return jsonify(recommend2())
 
 @app.route('/chat', methods=['POST'])
 @cross_origin(supports_credentials=True)
