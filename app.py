@@ -52,10 +52,10 @@ def recommend(data=None):
     item_rating = ''
     
     if(data != None):
-        item_name += data.get('Labels', data.get('Name', ''))
-        item_brand += data.get('Brand', '').replace(" ", "")
-        item_price += str(data.get('Price', '')).replace(",", "")
-        item_rating += str(data.get('Rating', ''))
+        item_name = data.get('Labels', data.get('Name', ''))
+        item_brand = data.get('Brand', '').replace(" ", "")
+        item_price = int(data.get('Price', ''))
+        item_rating = str(data.get('Rating', ''))
 
     item_name = stem(item_name)
     item_brand = item_brand.lower() 
@@ -65,13 +65,17 @@ def recommend(data=None):
 
     name_vec = cvv.fit_transform(new_fk['Name']).toarray()
     brand_vec = cvv.fit_transform(new_fk['Brand']).toarray()
-    price_vec = cvv.fit_transform(new_fk['Price']).toarray()
+
+    price_vec = []
+    for i in new_fk['Price'].tolist():
+        price_vec.append(1 - (abs(item_price - i) / item_price))
 
     name_similarity = cosine_similarity(name_vec)
     brand_similarity = cosine_similarity(brand_vec)
-    price_similarity = cosine_similarity(price_vec)
 
-    overall_similarity = name_similarity[-1] + brand_similarity[-1] 
+    print(price_vec)
+
+    overall_similarity = name_similarity[-1] + brand_similarity[-1] + list(map(lambda x: x * 0.5, price_vec))
 
     recom_indices = sorted(range(len(overall_similarity)), key=lambda i: overall_similarity[i], reverse=True)[1:31]
     
