@@ -8,7 +8,7 @@ from promptify import Prompter,OpenAI, Pipeline
 import random
 from flask_cors import CORS, cross_origin
 import requests
-
+import numpy as np
 ps = PorterStemmer()
 def stem(text):
   y = []
@@ -48,13 +48,13 @@ def recommend(data=None):
 
     item_name = ''
     item_brand = ''
-    item_price = ''
+    item_price = -1
     item_rating = ''
     
     if(data != None):
         item_name = data.get('Labels', data.get('Name', ''))
         item_brand = data.get('Brand', '').replace(" ", "")
-        item_price = int(data.get('Price', ''))
+        item_price = int(data.get('Price', -1))
         item_rating = str(data.get('Rating', ''))
 
     item_name = stem(item_name)
@@ -66,17 +66,23 @@ def recommend(data=None):
     name_vec = cvv.fit_transform(new_fk['Name']).toarray()
     brand_vec = cvv.fit_transform(new_fk['Brand']).toarray()
 
+    print(item_price)
+
     price_vec = []
-    for i in new_fk['Price'].tolist():
-        price_vec.append(1 - (abs(item_price - i) / item_price))
+    if (item_price != -1):
+        for i in new_fk['Price'].tolist():
+            price_vec.append(abs(1 - (abs(item_price - int(i)) / int(i))))
 
     name_similarity = cosine_similarity(name_vec)
     brand_similarity = cosine_similarity(brand_vec)
 
     print(price_vec)
 
-    overall_similarity = name_similarity[-1] + brand_similarity[-1] + list(map(lambda x: x * 0.5, price_vec))
+    overall_similarity = name_similarity[-1] + brand_similarity[-1] 
 
+    if item_price != -1:
+        overall_similarity += np.array(list(map(lambda x: x * 0.4, price_vec)))[-1]
+    
     recom_indices = sorted(range(len(overall_similarity)), key=lambda i: overall_similarity[i], reverse=True)[1:31]
     
     recommendations = [{'Brand': fk.iloc[idx]['Brand'], 'Image': fk.iloc[idx]['Image'], 'Name':  fk.iloc[idx]['Name'], 'Rating':  fk.iloc[idx]['Rating'], 'BreadCrumbs':  fk.iloc[idx]['BreadCrumbs'], 'Reviews':  fk.iloc[idx]['Reviews'], 'Price':  fk.iloc[idx]['Price'], 'Index': idx} for idx in recom_indices]
@@ -90,41 +96,52 @@ def recommend2():
     interested = res["interested"]
     purchased = res['purchased']
     for i in interested:
-        res_name = stem(str(i["name"]) + str(j["breadcrumbs"])) 
-        res_brand = stem(str(i["brand"]).lower())
-        res_price = i["price"]
-        new_fk = clean_fk.copy(deep=True)
-        new_fk = pd.concat([new_fk, pd.DataFrame([{'Brand': res_brand, 'Name': res_name, 'Price': res_price, 'Rating': ''}])], ignore_index=True)
+        try:
+            res_name = stem(str(i["name"]) + str(i["breadcrumbs"])) 
+            res_brand = stem(str(i["brand"]).lower())
+            res_price = i["price"]
+            new_fk = clean_fk.copy(deep=True)
+            new_fk = pd.concat([new_fk, pd.DataFrame([{'Brand': res_brand, 'Name': res_name, 'Price': res_price, 'Rating': ''}])], ignore_index=True)
 
-        name_vec = cvv.fit_transform(new_fk['Name']).toarray()
-        brand_vec = cvv.fit_transform(new_fk['Brand']).toarray()
+            name_vec = cvv.fit_transform(new_fk['Name']).toarray()
+            brand_vec = cvv.fit_transform(new_fk['Brand']).toarray()
 
-        name_similarity = cosine_similarity(name_vec)
-        brand_similarity = cosine_similarity(brand_vec)
+            name_similarity = cosine_similarity(name_vec)
+            brand_similarity = cosine_similarity(brand_vec)
 
-        overall_similarity = name_similarity[-1] + brand_similarity[-1] 
-        recommend_indexes.append(sorted(range(len(overall_similarity)), key=lambda i: overall_similarity[i], reverse=True)[5])
+            overall_similarity = name_similarity[-1] + brand_similarity[-1] 
+            t = sorted(range(len(overall_similarity)), key=lambda i: overall_similarity[i], reverse=True)[3]
+            if t not in recommend_indexes: 
+                recommend_indexes.append(t)
+        except:
+            pass
 
     for j in purchased:
-        res_name = stem(str(j["name"]) + str(j["breadcrumbs"]))
-        res_brand = stem(str(j["brand"]).lower())
-        res_price = i["price"]
+        try:
+            res_name = stem(str(j["name"]) + str(j["breadcrumbs"]))
+            res_brand = stem(str(j["brand"]).lower())
+            res_price = i["price"]
 
-        new_fk = clean_fk.copy(deep=True)
-        new_fk = pd.concat([new_fk, pd.DataFrame([{'Brand': res_brand, 'Name': res_name, 'Price': res_price, 'Rating': ''}])], ignore_index=True)
+            new_fk = clean_fk.copy(deep=True)
+            new_fk = pd.concat([new_fk, pd.DataFrame([{'Brand': res_brand, 'Name': res_name, 'Price': res_price, 'Rating': ''}])], ignore_index=True)
 
-        name_vec = cvv.fit_transform(new_fk['Name']).toarray()
-        brand_vec = cvv.fit_transform(new_fk['Brand']).toarray()
+            name_vec = cvv.fit_transform(new_fk['Name']).toarray()
+            brand_vec = cvv.fit_transform(new_fk['Brand']).toarray()
 
-        name_similarity = cosine_similarity(name_vec)
-        brand_similarity = cosine_similarity(brand_vec)
+            name_similarity = cosine_similarity(name_vec)
+            brand_similarity = cosine_similarity(brand_vec)
 
-        overall_similarity = name_similarity[-1] + brand_similarity[-1] 
-        recommend_indexes.append(sorted(range(len(overall_similarity)), key=lambda i: overall_similarity[i], reverse=True)[5])
+            overall_similarity = name_similarity[-1] + brand_similarity[-1]
+
+            t = sorted(range(len(overall_similarity)), key=lambda i: overall_similarity[i], reverse=True)[3]
+            if t not in recommend_indexes: 
+                recommend_indexes.append(t)
+        except:
+            pass
     
     for i in range(15 - len(recommend_indexes)):
-        recommend_indexes.append(random.randint(1, len(clean_fk['Name'].tolist())))
-    
+        recommend_indexes.append(random.randint(1, 4400))
+    print(recommend_indexes)
     recom = [{'Brand': fk.iloc[idx]['Brand'], 'Image': fk.iloc[idx]['Image'], 'Name':  fk.iloc[idx]['Name'], 'Rating':  fk.iloc[idx]['Rating'], 'BreadCrumbs':  fk.iloc[idx]['BreadCrumbs'], 'Reviews':  fk.iloc[idx]['Reviews'], 'Price':  fk.iloc[idx]['Price'], 'Index': idx} for idx in recommend_indexes]
     return recom
 
