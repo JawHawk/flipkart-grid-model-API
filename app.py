@@ -9,6 +9,9 @@ import random
 from flask_cors import CORS, cross_origin
 import requests
 import numpy as np
+import os
+
+
 ps = PorterStemmer()
 def stem(text):
   y = []
@@ -89,7 +92,7 @@ def recommend(data=None):
     return recommendations
 
 def recommend2():
-    res = requests.get('http://localhost:5001/api/flipkart/getpurchased').json()
+    res = requests.get('https://flipkart-backend-qn4j.onrender.com/api/flipkart/getpurchased').json()
 
     recommend_indexes = []
 
@@ -198,5 +201,11 @@ def chat_route():
         print(e)
         return "Error", 400
 
+@app.route('/', methods=['GET'])
+@cross_origin(supports_credentials=True)
+def ko():
+    return "Home"
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=True, host='0.0.0.0', port=port)
