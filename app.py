@@ -40,7 +40,6 @@ clean_fk['Name'] = clean_fk['Name'].apply(stem)
 cvv = TfidfVectorizer(max_features=5000, stop_words="english")
 
 # OPENAI vars
-# api_key = ''
 api_key = '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'
 
 model        = OpenAI(api_key)
@@ -69,8 +68,6 @@ def recommend(data=None):
     name_vec = cvv.fit_transform(new_fk['Name']).toarray()
     brand_vec = cvv.fit_transform(new_fk['Brand']).toarray()
 
-    print(item_price)
-
     price_vec = []
     if (item_price != -1):
         for i in new_fk['Price'].tolist():
@@ -78,8 +75,6 @@ def recommend(data=None):
 
     name_similarity = cosine_similarity(name_vec)
     brand_similarity = cosine_similarity(brand_vec)
-
-    print(price_vec)
 
     overall_similarity = name_similarity[-1] + brand_similarity[-1] 
 
@@ -92,66 +87,65 @@ def recommend(data=None):
     return recommendations
 
 def recommend2():
-    res = requests.get('https://flipkart-backend-qn4j.onrender.com/api/flipkart/getpurchased').json()
+    result = requests.get(url='https://flipkart-backend-qn4j.onrender.com/api/flipkart/getpurchased') 
+    res = result.json()
 
     recommend_indexes = []
 
     interested = res["interested"]
     purchased = res['purchased']
+
+    new_fk = clean_fk.copy(deep=True)
+
+    k = []
+
     for i in interested:
         try:
             res_name = stem(str(i["name"]) + str(i["breadcrumbs"])) 
             res_brand = stem(str(i["brand"]).lower())
             res_price = i["price"]
-            new_fk = clean_fk.copy(deep=True)
+            if res_name not in k:
+                k.append(res_name)
             new_fk = pd.concat([new_fk, pd.DataFrame([{'Brand': res_brand, 'Name': res_name, 'Price': res_price, 'Rating': ''}])], ignore_index=True)
-
-            name_vec = cvv.fit_transform(new_fk['Name']).toarray()
-            brand_vec = cvv.fit_transform(new_fk['Brand']).toarray()
-
-            name_similarity = cosine_similarity(name_vec)
-            brand_similarity = cosine_similarity(brand_vec)
-
-            overall_similarity = name_similarity[-1] + brand_similarity[-1] 
-            t = sorted(range(len(overall_similarity)), key=lambda i: overall_similarity[i], reverse=True)[3]
-            if t not in recommend_indexes: 
-                recommend_indexes.append(t)
         except:
             pass
-
     for j in purchased:
         try:
             res_name = stem(str(j["name"]) + str(j["breadcrumbs"]))
             res_brand = stem(str(j["brand"]).lower())
-            res_price = i["price"]
-
-            new_fk = clean_fk.copy(deep=True)
+            res_price = j["price"]
+            if res_name not in k:
+                k.append(res_name)
             new_fk = pd.concat([new_fk, pd.DataFrame([{'Brand': res_brand, 'Name': res_name, 'Price': res_price, 'Rating': ''}])], ignore_index=True)
-
-            name_vec = cvv.fit_transform(new_fk['Name']).toarray()
-            brand_vec = cvv.fit_transform(new_fk['Brand']).toarray()
-
-            name_similarity = cosine_similarity(name_vec)
-            brand_similarity = cosine_similarity(brand_vec)
-
-            overall_similarity = name_similarity[-1] + brand_similarity[-1]
-
-            t = sorted(range(len(overall_similarity)), key=lambda i: overall_similarity[i], reverse=True)[3]
-            if t not in recommend_indexes: 
-                recommend_indexes.append(t)
         except:
             pass
+
+    name_vec = cvv.fit_transform(new_fk['Name']).toarray()
+    brand_vec = cvv.fit_transform(new_fk['Brand']).toarray()
+
+    name_similarity = cosine_similarity(name_vec)
+    brand_similarity = cosine_similarity(brand_vec)
+
+    for i in range(1, len(interested)+len(purchased) + 1):
+        overall_similarity = name_similarity[-i] + brand_similarity[-i] 
+        t = sorted(range(len(clean_fk)), key=lambda i: overall_similarity[i], reverse=True)[3]
+        if t not in recommend_indexes: 
+            recommend_indexes.append(t)
     
     for i in range(15 - len(recommend_indexes)):
         recommend_indexes.append(random.randint(1, 4400))
-    print(recommend_indexes)
-    recom = [{'Brand': fk.iloc[idx]['Brand'], 'Image': fk.iloc[idx]['Image'], 'Name':  fk.iloc[idx]['Name'], 'Rating':  fk.iloc[idx]['Rating'], 'BreadCrumbs':  fk.iloc[idx]['BreadCrumbs'], 'Reviews':  fk.iloc[idx]['Reviews'], 'Price':  fk.iloc[idx]['Price'], 'Index': idx} for idx in recommend_indexes]
+
+    recom = [{"Brand": fk.iloc[idx]['Brand'], "Image": fk.iloc[idx]['Image'], "Name":  fk.iloc[idx]['Name'], "Rating":  fk.iloc[idx]['Rating'], "BreadCrumbs":  fk.iloc[idx]['BreadCrumbs'], "Reviews":  fk.iloc[idx]['Reviews'], "Price":  fk.iloc[idx]['Price'], "Index": idx} for idx in recommend_indexes]
     return recom
 
 @app.route('/recommend', methods=['GET'])
-@cross_origin(supports_credentials=True)
+@cross_origin(supports_credentials=True, origins=["*"])
 def recommend_route(data=None):
-    return jsonify(recommend2())
+    try:
+        data = jsonify(recommend2())
+        return data
+    except:
+        return "error", 500
 
 @app.route('/chat', methods=['POST'])
 @cross_origin(supports_credentials=True)
@@ -202,7 +196,7 @@ def chat_route():
         return "Error", 400
 
 @app.route('/', methods=['GET'])
-@cross_origin(supports_credentials=True)
+@cross_origin(supports_credentials=True, origins=["*"])
 def ko():
     return "Home"
 
