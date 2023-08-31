@@ -148,7 +148,7 @@ def recommend_route(data=None):
         return "error", 500
 
 @app.route('/chat', methods=['POST'])
-@cross_origin(supports_credentials=True)
+@cross_origin(supports_credentials=True , origins=["*"])
 def chat_route():
     item = request.json
     message = item.get('message', None)
